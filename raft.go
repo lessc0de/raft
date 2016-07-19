@@ -654,10 +654,6 @@ func (r *Raft) appendConfigurationEntry(future *configurationChangeFuture) {
 	r.configurations.latestIndex = index
 	r.leaderState.commitment.setConfiguration(configuration)
 	r.startStopReplication()
-
-	// Since we've added the recovery configuration to our log, we can
-	// disarm the recovery manager, if any.
-	asyncNotifyCh(r.recoveryCh)
 }
 
 // dispatchLog is called on the leader to push a log to disk, mark it
@@ -914,12 +910,7 @@ func (r *Raft) appendEntries(rpc RPC, a *AppendEntriesRequest) {
 
 			// Handle any new configuration changes
 			for _, newEntry := range newEntries {
-				if ok := r.checkAndProcessConfigurationLog(newEntry); ok {
-					// Since we've added the recovery
-					// configuration to our log, we can
-					// disarm the recovery manager, if any.
-					asyncNotifyCh(r.recoveryCh)
-				}
+				r.checkAndProcessConfigurationLog(newEntry)
 			}
 
 			// Update the lastLog
@@ -952,22 +943,18 @@ func (r *Raft) appendEntries(rpc RPC, a *AppendEntriesRequest) {
 // checkAndProcessConfigurationLog takes a log entry and updates the latest
 // configuration if the entry results in a new configuration. This must only be
 // called from the main thread, or from NewRaft() before any threads have begun.
-// Returns true if a configuration log entry was found.
-func (r *Raft) checkAndProcessConfigurationLog(entry *Log) bool {
+func (r *Raft) checkAndProcessConfigurationLog(entry *Log) {
 	if entry.Type == LogConfiguration {
 		r.configurations.committed = r.configurations.latest
 		r.configurations.committedIndex = r.configurations.latestIndex
 		r.configurations.latest = decodeConfiguration(entry.Data)
 		r.configurations.latestIndex = entry.Index
-		return true
 	} else if entry.Type == LogAddPeerDeprecated || entry.Type == LogRemovePeerDeprecated {
 		r.configurations.committed = r.configurations.latest
 		r.configurations.committedIndex = r.configurations.latestIndex
 		r.configurations.latest = decodePeers(entry.Data, r.trans)
 		r.configurations.latestIndex = entry.Index
-		return true
 	}
-	return false
 }
 
 // requestVote is invoked when we get an request vote RPC call.
