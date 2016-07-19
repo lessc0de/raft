@@ -88,7 +88,7 @@ func MakeRaft(t *testing.T, conf *Config) *RaftEnv {
 	}
 
 	log.Printf("[INFO] Starting node at %v", trans.LocalAddr())
-	raft, err := NewRaft(conf, env.fsm, stable, stable, snap, trans, nil)
+	raft, err := NewRaft(conf, env.fsm, stable, stable, snap, trans)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
